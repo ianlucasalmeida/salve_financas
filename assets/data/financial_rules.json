@@ -1,0 +1,25 @@
+{
+  "versao": "1.0",
+  "normas_bacen": {
+    "limite_comprometimento_renda": 0.30,
+    "recomendacao_reserva_emergencia": "6 a 12 meses de custo fixo",
+    "juros_rotativo_alerta": "Evitar acima de 5 dias",
+    "portabilidade_credito": "Direito do consumidor para reduzir juros"
+  },
+  "score_credito_brasil": {
+    "critico": {"min": 0, "max": 300, "acao": "Priorizar pagamento de dívidas atrasadas"},
+    "regular": {"min": 301, "max": 500, "acao": "Evitar novos parcelamentos"},
+    "bom": {"min": 501, "max": 700, "acao": "Manter pagamentos em dia"},
+    "excelente": {"min": 701, "max": 1000, "acao": "Negociar melhores taxas de investimento"}
+  },
+  "metodologia_financeira": {
+    "regra_50_30_20": {
+      "essencial": 0.50,
+      "estilo_vida": 0.30,
+      "prioridade_financeira": 0.20
+    }
+  },
+  "categorias_consumo": [
+    "Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Educação", "Imprevistos"
+  ]
+}
