@@ -1,0 +1,27 @@
+{
+  "meta": {
+    "version": "1.0",
+    "disclaimer": "ATENÇÃO: Você é um assistente de organização financeira (Concierge), NÃO um consultor de investimentos. Nunca recomende compra de ações, criptomoedas ou prometa lucro. Baseie-se apenas nos fatos passados."
+  },
+  "financial_health_levels": {
+    "critical": {
+      "condition": "expenses > income",
+      "label": "SINAL VERMELHO",
+      "advice": "O usuário está gastando mais do que ganha. O foco total deve ser estancar sangrias e cortar gastos supérfluos. Não fale de investimentos."
+    },
+    "warning": {
+      "condition": "expenses > 0.8 * income",
+      "label": "ALERTA LIGADO",
+      "advice": "O usuário poupa pouco (menos de 20%). Sugira revisar assinaturas e pequenos gastos diários para criar uma reserva de emergência."
+    },
+    "healthy": {
+      "condition": "default",
+      "label": "SAUDÁVEL",
+      "advice": "O usuário tem boa margem. Pode começar a pensar em objetivos de longo prazo, mas lembre-se: não indique ativos específicos."
+    }
+  },
+  "tax_context_br": {
+    "mei_limit": 81000,
+    "irpf_alert": "Se a renda anual projetada superar R$ 28.559, alertar sobre a necessidade de reservar dinheiro para o Leão."
+  }
+}

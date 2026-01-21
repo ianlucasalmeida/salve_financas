@@ -21,66 +21,73 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     _loadUser();
   }
 
-  /// Recupera o usuário logado para garantir que os dados exibidos sejam isolados
   Future<void> _loadUser() async {
-    // Busca o usuário atual no banco local
     final currentUser = await isar.userModels.where().findFirst();
-    if (mounted) {
-      setState(() => _user = currentUser);
-    }
+    if (mounted) setState(() => _user = currentUser);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Carregamento inicial do perfil
     if (_user == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(backgroundColor: Colors.black, body: Center(child: CircularProgressIndicator(color: Colors.greenAccent)));
     }
 
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Extrato de Lançamentos'),
+        title: const Text('EXTRATO', style: TextStyle(fontFamily: 'monospace', letterSpacing: 2, fontWeight: FontWeight.bold)),
         centerTitle: true,
+        backgroundColor: Colors.black,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: Colors.greenAccent),
+            onPressed: () => context.push('/scanner'),
+          )
+        ],
       ),
       body: StreamBuilder<List<TransactionModel>>(
-        // REQUISITO: Isolamento por ID e atualização em tempo real (watch)
         stream: isar.transactionModels
             .filter()
             .userIdEqualTo(_user!.id)
             .sortByDateDesc()
             .watch(fireImmediately: true),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
           }
 
           final txs = snapshot.data ?? [];
           
           if (txs.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(32.0),
-                child: Text(
-                  "Nenhum registro encontrado.\nUse o Scanner ou o botão '+' para adicionar.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey, fontSize: 16),
-                ),
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.receipt_long, size: 64, color: Colors.white.withOpacity(0.1)),
+                  const SizedBox(height: 16),
+                  const Text("SEM REGISTROS", style: TextStyle(color: Colors.grey, fontFamily: 'monospace')),
+                ],
               ),
             );
           }
 
-          // Interação de Dados: Calcula totais baseados no que está na tela
+          // Resumo Financeiro no Topo
           final income = txs.where((t) => t.type == 'income').fold(0.0, (s, t) => s + t.value);
           final expense = txs.where((t) => t.type == 'expense').fold(0.0, (s, t) => s + t.value);
 
           return Column(
             children: [
-              _buildExtratoHeader(income, expense),
+              _buildSummaryHeader(income, expense),
               Expanded(
                 child: ListView.builder(
                   itemCount: txs.length,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  itemBuilder: (context, index) => _buildTransactionItem(context, txs[index]),
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemBuilder: (context, index) => _TransactionExpandableCard(
+                    transaction: txs[index],
+                    onEdit: () => _showTransactionForm(context, existingTx: txs[index]),
+                    onDelete: () => _deleteTransaction(txs[index].id),
+                  ),
                 ),
               ),
             ],
@@ -88,125 +95,218 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
         },
       ),
       floatingActionButton: FloatingActionButton.extended(
+        backgroundColor: Colors.greenAccent,
+        foregroundColor: Colors.black,
         onPressed: () => _showTransactionForm(context),
-        label: const Text("Novo Lançamento"),
+        label: const Text("NOVO", style: TextStyle(fontWeight: FontWeight.bold)),
         icon: const Icon(Icons.add),
       ),
     );
   }
 
-  /// Componente de Resumo (Interação dinâmica com o extrato)
-  Widget _buildExtratoHeader(double income, double expense) {
+  // --- HEADER DE RESUMO ---
+  Widget _buildSummaryHeader(double income, double expense) {
     return Container(
       margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.symmetric(vertical: 20),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white10),
+        color: const Color(0xFF111111),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white12),
       ),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _summaryCol("Receitas", income, Colors.greenAccent),
-          Container(width: 1, height: 35, color: Colors.white10),
-          _summaryCol("Despesas", expense, Colors.redAccent),
+          _statItem("ENTRADAS", income, Colors.greenAccent),
+          Container(width: 1, height: 40, color: Colors.white10),
+          _statItem("SAÍDAS", expense, Colors.redAccent),
+          Container(width: 1, height: 40, color: Colors.white10),
+          _statItem("SALDO", income - expense, (income - expense) >= 0 ? Colors.white : Colors.red),
         ],
       ),
     );
   }
 
-  Widget _summaryCol(String title, double value, Color color) {
+  Widget _statItem(String label, double val, Color color) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey, letterSpacing: 1)),
         const SizedBox(height: 4),
-        Text("R\$ ${value.toStringAsFixed(2)}", 
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+        Text("R\$ ${val.toStringAsFixed(2)}", style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color, fontFamily: 'monospace')),
       ],
     );
   }
 
-  Widget _buildTransactionItem(BuildContext context, TransactionModel t) {
-    final isExpense = t.type == 'expense';
-    final isScan = t.rawText != null && t.rawText!.isNotEmpty;
-
-    return Dismissible(
-      key: Key("tx_item_${t.id}"),
-      direction: DismissDirection.endToStart,
-      confirmDismiss: (dir) => _confirmDelete(context),
-      onDismissed: (_) async {
-        await isar.writeTxn(() => isar.transactionModels.delete(t.id));
-      },
-      background: _deleteBg(),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ListTile(
-          onTap: () => _showTransactionForm(context, existingTx: t),
-          leading: CircleAvatar(
-            backgroundColor: isExpense ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-            child: Icon(
-              isExpense ? Icons.arrow_downward : Icons.arrow_upward, 
-              color: isExpense ? Colors.redAccent : Colors.greenAccent,
-              size: 18,
-            ),
-          ),
-          title: Row(
-            children: [
-              Expanded(child: Text(t.title, style: const TextStyle(fontWeight: FontWeight.bold))),
-              if (isScan) const Icon(Icons.qr_code_2, size: 14, color: Colors.blueGrey),
-            ],
-          ),
-          subtitle: Text("${t.category} • ${t.date.day}/${t.date.month}"),
-          trailing: Text(
-            "${isExpense ? '-' : '+'} R\$ ${t.value.toStringAsFixed(2)}", 
-            style: TextStyle(
-              fontWeight: FontWeight.w900,
-              color: isExpense ? Colors.redAccent : Colors.greenAccent
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _deleteBg() {
-    return Container(
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.only(right: 20),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(16)),
-      child: const Icon(Icons.delete_sweep, color: Colors.white),
-    );
-  }
-
-  Future<bool?> _confirmDelete(BuildContext context) {
-    return showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text("Remover registro?"),
-        content: const Text("Essa ação é permanente."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Voltar")),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Apagar", style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
+  // --- LÓGICA DE AÇÕES ---
+  Future<void> _deleteTransaction(int id) async {
+    await isar.writeTxn(() => isar.transactionModels.delete(id));
   }
 
   void _showTransactionForm(BuildContext context, {TransactionModel? existingTx}) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      backgroundColor: const Color(0xFF111111),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
       builder: (context) => _TransactionForm(userId: _user!.id, tx: existingTx),
     );
   }
 }
 
-// --- SUB-WIDGET: FORMULÁRIO DE LANÇAMENTO ---
+// ============================================================================
+// WIDGET DO CARTÃO EXPANSÍVEL (A MÁGICA VISUAL)
+// ============================================================================
+class _TransactionExpandableCard extends StatelessWidget {
+  final TransactionModel transaction;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
+  const _TransactionExpandableCard({
+    required this.transaction,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isExpense = transaction.type == 'expense';
+    final color = isExpense ? Colors.redAccent : Colors.greenAccent;
+    final hasItems = transaction.items != null && transaction.items!.isNotEmpty;
+
+    return Card(
+      color: const Color(0xFF0F0F0F),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          // Ícone Leading
+          leading: Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              isExpense ? Icons.shopping_bag_outlined : Icons.attach_money,
+              color: color,
+              size: 20,
+            ),
+          ),
+          // Título e Data
+          title: Text(
+            transaction.title.toUpperCase(),
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            "${transaction.date.day}/${transaction.date.month} • ${transaction.category}",
+            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          ),
+          // Valor
+          trailing: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                "R\$ ${transaction.value.toStringAsFixed(2)}",
+                style: TextStyle(fontWeight: FontWeight.w900, color: color, fontSize: 14),
+              ),
+              if (hasItems) 
+                const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey)
+            ],
+          ),
+          
+          // CONTEÚDO EXPANDIDO (A NOTA FISCAL)
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: const BoxDecoration(
+                color: Color(0xFF050505), // Fundo mais escuro para o "papel"
+                border: Border(top: BorderSide(color: Colors.white10)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Lista de Itens (Se houver)
+                  if (hasItems) ...[
+                    const Text("ITENS DA NOTA", style: TextStyle(color: Colors.grey, fontSize: 10, letterSpacing: 2)),
+                    const SizedBox(height: 12),
+                    ...transaction.items!.map((item) => _buildReceiptRow(item)),
+                    const Divider(color: Colors.white10, height: 24),
+                  ] else 
+                    const Center(
+                      child: Text("Sem detalhes dos itens.", style: TextStyle(color: Colors.white24, fontSize: 12))
+                    ),
+
+                  // Ações
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton.icon(
+                        onPressed: onDelete,
+                        icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                        label: const Text("EXCLUIR", style: TextStyle(color: Colors.red, fontSize: 12)),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: onEdit,
+                        style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.white24)),
+                        icon: const Icon(Icons.edit, size: 16, color: Colors.white),
+                        label: const Text("EDITAR", style: TextStyle(color: Colors.white, fontSize: 12)),
+                      ),
+                    ],
+                  )
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReceiptRow(TransactionItem item) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Quantidade
+          SizedBox(
+            width: 30,
+            child: Text(
+              "${item.quantity?.toStringAsFixed(0) ?? 1}x",
+              style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
+            ),
+          ),
+          // Nome
+          Expanded(
+            child: Text(
+              item.name ?? "Produto",
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+          // Valor Total do Item
+          Text(
+            "R\$ ${item.totalPrice?.toStringAsFixed(2) ?? 0.00}",
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ============================================================================
+// FORMULÁRIO DE EDIÇÃO/CRIAÇÃO
+// ============================================================================
 class _TransactionForm extends StatefulWidget {
   final int userId;
   final TransactionModel? tx;
@@ -220,86 +320,102 @@ class _TransactionFormState extends State<_TransactionForm> {
   late TextEditingController _titleCtrl;
   late TextEditingController _valueCtrl;
   late String _type;
-  String _cat = 'Geral';
+  late String _cat;
 
   @override
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.tx?.title ?? "");
-    // Trata o valor para exibição amigável
-    _valueCtrl = TextEditingController(text: widget.tx?.value == 0.0 ? "" : widget.tx?.value.toString());
+    _valueCtrl = TextEditingController(text: widget.tx?.value.toStringAsFixed(2) ?? "");
     _type = widget.tx?.type ?? 'expense';
+    _cat = widget.tx?.category ?? 'Geral';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final isEdit = widget.tx != null;
-
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom, 
+        bottom: MediaQuery.of(context).viewInsets.bottom + 24, 
         left: 24, right: 24, top: 32
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(isEdit ? "Editar Detalhes" : "Novo Lançamento", 
-              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
+          Text(widget.tx != null ? "EDITAR REGISTRO" : "NOVO LANÇAMENTO", 
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.greenAccent, letterSpacing: 2)),
           const SizedBox(height: 24),
-          TextField(
-            controller: _titleCtrl,
-            decoration: const InputDecoration(labelText: 'Descrição ou Nome da Loja', prefixIcon: Icon(Icons.edit_note)),
-          ),
+          
+          _inputField("Loja / Descrição", _titleCtrl, icon: Icons.store),
           const SizedBox(height: 16),
-          TextField(
-            controller: _valueCtrl,
-            decoration: const InputDecoration(labelText: 'Valor Total (R\$)', prefixText: 'R\$ '),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          ),
+          _inputField("Valor (R\$)", _valueCtrl, icon: Icons.attach_money, isNumber: true),
+          
           const SizedBox(height: 16),
+          // Seletor de Tipo
           DropdownButtonFormField<String>(
             value: _type,
+            dropdownColor: const Color(0xFF222222),
+            style: const TextStyle(color: Colors.white),
+            decoration: _inputDeco("Tipo"),
             items: const [
-              DropdownMenuItem(value: 'expense', child: Text('Despesa')),
-              DropdownMenuItem(value: 'income', child: Text('Receita')),
+              DropdownMenuItem(value: 'expense', child: Text('Despesa (Saída)')),
+              DropdownMenuItem(value: 'income', child: Text('Receita (Entrada)')),
             ],
             onChanged: (v) => setState(() => _type = v!),
-            decoration: const InputDecoration(labelText: 'Tipo'),
           ),
+          
           const SizedBox(height: 32),
+          
           ElevatedButton(
-            onPressed: () => _handleSave(),
+            onPressed: _save,
             style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 18),
-              backgroundColor: theme.primaryColor,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.greenAccent,
+              foregroundColor: Colors.black,
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text(isEdit ? "ATUALIZAR" : "CONFIRMAR", 
-                style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w900, letterSpacing: 1.1)),
+            child: const Text("SALVAR DADOS", style: TextStyle(fontWeight: FontWeight.bold)),
           ),
-          const SizedBox(height: 32),
         ],
       ),
     );
   }
 
-  Future<void> _handleSave() async {
-    if (_titleCtrl.text.isEmpty || _valueCtrl.text.isEmpty) return;
-    
-    final val = double.tryParse(_valueCtrl.text.replaceAll(',', '.'));
-    if (val == null) return;
+  Widget _inputField(String label, TextEditingController ctrl, {IconData? icon, bool isNumber = false}) {
+    return TextField(
+      controller: ctrl,
+      keyboardType: isNumber ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      style: const TextStyle(color: Colors.white),
+      decoration: _inputDeco(label, icon: icon),
+    );
+  }
+
+  InputDecoration _inputDeco(String label, {IconData? icon}) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.grey),
+      prefixIcon: icon != null ? Icon(icon, color: Colors.greenAccent, size: 20) : null,
+      enabledBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.white12), borderRadius: BorderRadius.circular(8)),
+      focusedBorder: OutlineInputBorder(borderSide: const BorderSide(color: Colors.greenAccent), borderRadius: BorderRadius.circular(8)),
+      filled: true,
+      fillColor: const Color(0xFF1A1A1A),
+    );
+  }
+
+  Future<void> _save() async {
+    final val = double.tryParse(_valueCtrl.text.replaceAll(',', '.')) ?? 0.0;
+    if (_titleCtrl.text.isEmpty || val <= 0) return;
 
     final updatedTx = TransactionModel()
       ..id = widget.tx?.id ?? Isar.autoIncrement
-      ..userId = widget.userId // Vínculo com usuário logado
+      ..userId = widget.userId
       ..title = _titleCtrl.text
       ..value = val
       ..date = widget.tx?.date ?? DateTime.now()
       ..category = _cat
       ..type = _type
-      ..rawText = widget.tx?.rawText;
+      ..rawText = widget.tx?.rawText
+      ..items = widget.tx?.items; // Mantém os itens do scraping
 
     await isar.writeTxn(() => isar.transactionModels.put(updatedTx));
     if (mounted) context.pop();

@@ -65,12 +65,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
           return ListView(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
             children: [
-              // 1. Cabeçalho com Foto (UI preparada para ImagePicker)
+              // 1. Cabeçalho com Foto
               _buildUserHeader(context),
 
               const SizedBox(height: 32),
 
-              // 2. Econômetro Dinâmico (Feedback visual de saúde financeira)
+              // 2. Econômetro Dinâmico
               _buildEconometroSection(balance),
 
               const SizedBox(height: 32),
@@ -86,7 +86,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               
               const SizedBox(height: 40),
               
-              // 4. Manutenção de Dados (Segurança e Performance)
+              // 4. Manutenção de Dados
               _buildDataMaintenanceSection(context),
             ],
           );
@@ -190,9 +190,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onTap: () => _showCurrencyPicker(context),
           ),
           const Divider(height: 1, indent: 55),
+          
+          // --- NOVO ATALHO PARA CONFIGURAÇÃO DA IA ---
+          ListTile(
+            leading: const Icon(Icons.memory, size: 20, color: Colors.greenAccent), // Ícone de "Cérebro/Chip"
+            title: const Text("Sistema Neural & IA"),
+            subtitle: const Text("Gerenciar modelo local"),
+            trailing: const Icon(Icons.chevron_right, size: 18),
+            onTap: () => context.push('/settings'), // Navega para a tela de Configuração Local
+          ),
+          const Divider(height: 1, indent: 55),
+          // -------------------------------------------
+
           ListTile(
             leading: const Icon(Icons.shield_outlined, size: 20),
-            title: const Text("Privacidade e IA"),
+            title: const Text("Privacidade e Segurança"),
             subtitle: const Text("Dados isolados por perfil"),
             trailing: const Icon(Icons.chevron_right, size: 18),
             onTap: () {},
