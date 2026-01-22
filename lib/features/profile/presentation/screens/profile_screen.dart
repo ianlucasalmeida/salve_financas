@@ -24,7 +24,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// Recupera o usuário da sessão atual para isolamento de dados
   Future<void> _loadCurrentUserData() async {
-    // Busca o primeiro usuário cadastrado (lógica de perfil único local)
     final user = await isar.userModels.where().findFirst();
     if (mounted) {
       setState(() => _currentUser = user);
@@ -50,7 +49,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ],
       ),
       body: StreamBuilder<List<TransactionModel>>(
-        // ISOLAMENTO REAL: Filtra transações no banco que pertencem apenas a este ID
         stream: isar.transactionModels
             .filter()
             .userIdEqualTo(_currentUser!.id)
@@ -58,7 +56,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         builder: (context, snapshot) {
           final txs = snapshot.data ?? [];
           
-          // Cálculo dinâmico baseado no histórico real do usuário
           final balance = txs.fold(0.0, (sum, t) => 
             t.type == 'income' ? sum + t.value : sum - t.value);
 
@@ -105,7 +102,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             CircleAvatar(
               radius: 55,
               backgroundColor: Theme.of(context).primaryColor.withOpacity(0.1),
-              // Exibe a foto se o caminho existir no banco, senão ícone padrão
               backgroundImage: _currentUser?.profilePicPath != null 
                 ? AssetImage(_currentUser!.profilePicPath!) 
                 : null,
@@ -191,13 +187,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 55),
           
-          // --- NOVO ATALHO PARA CONFIGURAÇÃO DA IA ---
           ListTile(
-            leading: const Icon(Icons.memory, size: 20, color: Colors.greenAccent), // Ícone de "Cérebro/Chip"
+            leading: const Icon(Icons.memory, size: 20, color: Colors.greenAccent),
             title: const Text("Sistema Neural & IA"),
             subtitle: const Text("Gerenciar modelo local"),
             trailing: const Icon(Icons.chevron_right, size: 18),
-            onTap: () => context.push('/settings'), // Navega para a tela de Configuração Local
+            onTap: () => context.push('/settings'),
+          ),
+          const Divider(height: 1, indent: 55),
+
+          // --- 🟢 NOVO BOTÃO: CALCULADORAS DE JUROS ---
+          ListTile(
+            leading: const Icon(Icons.calculate, size: 20, color: Colors.orangeAccent),
+            title: const Text("Calculadoras Financeiras"),
+            subtitle: const Text("Juros Simples, Compostos & ROI"),
+            trailing: const Icon(Icons.chevron_right, size: 18),
+            onTap: () => _showCalculatorsModal(context), // Abre o menu de opções
           ),
           const Divider(height: 1, indent: 55),
           // -------------------------------------------
@@ -230,6 +235,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- LÓGICA DE INTERAÇÃO ---
+
+  // 🟢 MENU DE CALCULADORAS (NOVO)
+  void _showCalculatorsModal(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF1A1A1A),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => Wrap(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                const Icon(Icons.calculate, color: Colors.orangeAccent),
+                const SizedBox(width: 10),
+                const Text("Ferramentas de Cálculo", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          ListTile(
+            leading: const Icon(Icons.trending_up, color: Colors.greenAccent),
+            title: const Text("Juros Compostos", style: TextStyle(color: Colors.white)),
+            subtitle: const Text("Projeção de investimentos a longo prazo", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navegar para tela de Juros Compostos
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Calculadora de Juros Compostos em breve")));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.percent, color: Colors.blueAccent),
+            title: const Text("Juros Simples", style: TextStyle(color: Colors.white)),
+            subtitle: const Text("Cálculo de rendimentos básicos", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navegar para tela de Juros Simples
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Calculadora de Juros Simples em breve")));
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.house, color: Colors.redAccent),
+            title: const Text("Financiamento (Price/SAC)", style: TextStyle(color: Colors.white)),
+            subtitle: const Text("Simulador de parcelas de imóveis/veículos", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            onTap: () {
+              Navigator.pop(context);
+              // TODO: Navegar para tela de Financiamento
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Simulador de Financiamento em breve")));
+            },
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
 
   void _showCurrencyPicker(BuildContext context) {
     showModalBottomSheet(
@@ -299,25 +358,22 @@ class FiatEconometerPainter extends CustomPainter {
 
     final rect = Rect.fromLTWH(0, 0, size.width, size.height * 2);
 
-    // Faixas de cor do Econômetro
     canvas.drawArc(rect, 3.14, 1.04, false, paint..color = Colors.red.withOpacity(0.7));
     canvas.drawArc(rect, 4.18, 1.04, false, paint..color = Colors.orange.withOpacity(0.7));
     canvas.drawArc(rect, 5.22, 1.04, false, paint..color = Colors.greenAccent.withOpacity(0.7));
 
-    // Ponteiro
     final pointerPaint = Paint()
       ..color = Colors.white
       ..strokeWidth = 4
       ..strokeCap = StrokeCap.round;
 
-    // Cálculo dinâmico do ângulo: 4.7 é o centro (neutro)
     double angle;
     if (balance <= -1000) {
-      angle = 3.4; // Crítico (Vermelho)
+      angle = 3.4;
     } else if (balance >= 2000) {
-      angle = 6.0; // Perfeito (Verde)
+      angle = 6.0;
     } else {
-      angle = 4.7 + (balance / 2000); // Interpolação baseada no saldo
+      angle = 4.7 + (balance / 2000);
     }
 
     canvas.drawLine(
@@ -326,7 +382,6 @@ class FiatEconometerPainter extends CustomPainter {
       pointerPaint,
     );
     
-    // Pino central
     canvas.drawCircle(Offset(size.width / 2, size.height), 6, Paint()..color = Colors.white);
   }
 

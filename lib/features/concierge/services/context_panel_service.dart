@@ -1,75 +1,67 @@
-import 'dart:convert';
-import 'package:flutter/services.dart';
 import 'package:isar/isar.dart';
 import 'package:salve_financas/main.dart';
 import 'package:salve_financas/features/dashboard/data/models/transaction_model.dart';
+import 'package:salve_financas/features/auth/data/models/user_model.dart';
 
 class ContextPanelService {
-  Map<String, dynamic>? _rules;
-
-  /// Carrega as regras do JSON na memória
-  Future<void> _loadRules() async {
-    if (_rules != null) return;
-    final jsonString = await rootBundle.loadString('assets/context_rules.json');
-    _rules = jsonDecode(jsonString);
-  }
-
-  /// Gera o "Prompt de Contexto" otimizado para a LLM
+  
+  /// Gera o contexto puramente factual para a LLM.
+  /// Removemos avisos de segurança para evitar que o Llama entre em modo de recusa.
   Future<String> buildFinancialPersona() async {
-    await _loadRules();
-    
-    // 1. Coleta Dados Reais (Isar)
+    final user = await isar.userModels.where().findFirst();
+    if (user == null) return "Sem dados de usuário.";
+
+    // 1. Coleta Totais do Ano (Dados Macro)
     final now = DateTime.now();
     final startYear = DateTime(now.year, 1, 1);
     
-    final txs = await isar.transactionModels
+    final allTxs = await isar.transactionModels
         .filter()
-        .dateGreaterThan(startYear) // Pega o ano todo para análise de IR
+        .userIdEqualTo(user.id)
+        .dateGreaterThan(startYear) 
         .findAll();
 
     double totalIncome = 0;
     double totalExpense = 0;
     
-    for (var t in txs) {
+    for (var t in allTxs) {
       if (t.type == 'income') totalIncome += t.value;
       else totalExpense += t.value;
     }
 
     double saldo = totalIncome - totalExpense;
-    double taxaPoupanca = totalIncome > 0 ? (saldo / totalIncome) : 0;
 
-    // 2. Aplica a Lógica Rígida (Dart processa, IA fala)
-    Map<String, dynamic> healthStatus;
-    
-    if (saldo < 0) {
-      healthStatus = _rules!['financial_health_levels']['critical'];
-    } else if (taxaPoupanca < 0.20) { // Menos de 20% de poupança
-      healthStatus = _rules!['financial_health_levels']['warning'];
+    // 2. Coleta HISTÓRICO RECENTE (Últimas 10)
+    final recentTxs = await isar.transactionModels
+        .filter()
+        .userIdEqualTo(user.id)
+        .sortByDateDesc()
+        .limit(10)
+        .findAll();
+
+    StringBuffer historyBuffer = StringBuffer();
+    if (recentTxs.isEmpty) {
+      historyBuffer.writeln("Nenhuma transação registrada recentemente.");
     } else {
-      healthStatus = _rules!['financial_health_levels']['healthy'];
+      for (var t in recentTxs) {
+        final dateStr = "${t.date.day.toString().padLeft(2,'0')}/${t.date.month.toString().padLeft(2,'0')}";
+        final typeSymbol = t.type == 'income' ? '(+)' : '(-)';
+        
+        // Ex: 21/01 (-) R$ 50.00 - Padaria [Alimentação]
+        historyBuffer.writeln("$dateStr $typeSymbol R\$ ${t.value.toStringAsFixed(2)} - ${t.title} [${t.category}]");
+      }
     }
 
-    // 3. Verifica Regras Fiscais (Ex: IRPF)
-    String taxAlert = "";
-    if (totalIncome > 28559) { // Valor hipotético do JSON
-      taxAlert = "ALERTA FISCAL: O usuário já superou a faixa de isenção do IR anual. Lembre-o de organizar os comprovantes.";
-    }
-
-    // 4. Monta o PROMPT FINAL OTIMIZADO
-    // A IA recebe apenas o resultado da análise, economizando tokens e processamento.
+    // 3. Monta o PROMPT NEUTRO
+    // Apenas dados. A IA decidirá o tom da conversa baseada no System Prompt.
     return """
-    [DIRETRIZES DE SEGURANÇA]
-    ${_rules!['meta']['disclaimer']}
-
-    [PAINEL DE SITUAÇÃO DO USUÁRIO]
-    - Status Atual: ${healthStatus['label']}
-    - Diretriz de Atuação: ${healthStatus['advice']}
-    - $taxAlert
-
-    [DADOS REAIS (Referência)]
-    - Receita Ano: R\$ ${totalIncome.toStringAsFixed(2)}
-    - Despesa Ano: R\$ ${totalExpense.toStringAsFixed(2)}
+    [DADOS DO USUÁRIO - ANO CORRENTE]
+    - Total Receitas: R\$ ${totalIncome.toStringAsFixed(2)}
+    - Total Despesas: R\$ ${totalExpense.toStringAsFixed(2)}
     - Saldo Líquido: R\$ ${saldo.toStringAsFixed(2)}
+
+    [EXTRATO DE TRANSAÇÕES RECENTES]
+    ${historyBuffer.toString()}
     """;
   }
 }

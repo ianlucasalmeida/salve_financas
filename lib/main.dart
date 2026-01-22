@@ -10,8 +10,9 @@ import 'package:salve_financas/core/theme/app_theme.dart';
 import 'package:salve_financas/features/dashboard/data/models/transaction_model.dart';
 import 'package:salve_financas/features/goals/data/models/goal_model.dart';
 import 'package:salve_financas/features/auth/data/models/user_model.dart';
-// Import do Modelo de Configuração (NOVO)
 import 'package:salve_financas/core/data/models/app_config_model.dart'; 
+// --- NOVO IMPORT ---
+import 'package:salve_financas/features/concierge/data/models/chat_message_model.dart';
 
 /// Instância global do Isar.
 late Isar isar;
@@ -27,7 +28,8 @@ void main() async {
         TransactionModelSchema, 
         GoalModelSchema, 
         UserModelSchema,
-        AppConfigModelSchema, // <--- REGISTRADO AQUI PARA SALVAR AS PREFERÊNCIAS
+        AppConfigModelSchema,
+        ChatMessageModelSchema, // <--- REGISTRADO AQUI
       ],
       directory: dir.path,
       inspector: true, 

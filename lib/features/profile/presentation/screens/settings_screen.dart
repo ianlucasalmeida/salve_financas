@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:isar/isar.dart';
@@ -31,48 +32,112 @@ class _SettingsScreenState extends State<SettingsScreen> {
     
     if (mounted) {
       setState(() {
-        _highPerf = config?.highPerformanceMode ?? true; // Padrão TRUE (1.5GB)
+        _highPerf = config?.highPerformanceMode ?? true;
         _isModelPresent = present;
       });
     }
   }
 
+  // --- ALTERAÇÃO PRINCIPAL AQUI ---
   Future<void> _togglePerformance(bool value) async {
-    setState(() => _highPerf = value);
-    
-    // Salva no banco
+    // 1. Salva a nova preferência no banco
     await isar.writeTxn(() async {
       final config = await isar.appConfigModels.where().findFirst() ?? AppConfigModel();
       config.highPerformanceMode = value;
       await isar.appConfigModels.put(config);
     });
 
+    // 2. Atualiza visualmente o switch
+    setState(() => _highPerf = value);
+
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(value ? "Modo Turbo Ativado (Alocando 1.5GB)" : "Modo Econômico Ativado"),
-        backgroundColor: Colors.greenAccent,
-      ));
+      // 3. Exibe Alerta de Reinício Obrigatório 
+      // Isso impede que o app tente recarregar a IA na hora e estoure a memória
+      showDialog(
+        context: context,
+        barrierDismissible: false, // Usuário é obrigado a clicar no botão
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF222222),
+          title: const Text("Reinicialização Necessária", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: const Text(
+            "Para alterar a alocação de memória do Cérebro Neural com segurança, é necessário reiniciar o aplicativo.\n\nPor favor, feche o app e abra novamente.",
+            style: TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Fecha o dialog
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("Configuração salva. Reinicie o app agora."),
+                    backgroundColor: Colors.amber,
+                  ),
+                );
+              },
+              child: const Text("Entendi", style: TextStyle(color: Colors.greenAccent)),
+            ),
+          ],
+        ),
+      );
     }
   }
+  // --------------------------------
 
   Future<void> _downloadAi() async {
     setState(() => _downloading = true);
+    
+    int lastPercentage = 0;
+
     try {
-      await _aiManager.downloadModel(onProgress: (p) => setState(() => _progress = p));
-      setState(() {
-        _isModelPresent = true;
-        _downloading = false;
+      await _aiManager.downloadModel(onProgress: (p) {
+        final currentPercentage = (p * 100).toInt();
+        if (currentPercentage > lastPercentage) {
+          lastPercentage = currentPercentage;
+          if (mounted) setState(() => _progress = p);
+        }
       });
+      
+      if (mounted) {
+        setState(() {
+          _isModelPresent = true;
+          _downloading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Download Concluído! Sistema pronto."),
+          backgroundColor: Colors.green,
+        ));
+      }
+      
     } catch (e) {
-      setState(() => _downloading = false);
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erro no download")));
+      if (mounted) {
+        setState(() => _downloading = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Erro no download. Verifique o Wi-Fi.")));
+      }
     }
   }
 
   Future<void> _deleteAi() async {
-    // Implementar logica de delete no AiManager se necessário, ou apenas sobrescrever
-    // Por enquanto, apenas avisar
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Limpeza de cache em breve.")));
+    try {
+      final path = await _aiManager.getModelPath();
+      final file = File(path);
+      
+      if (await file.exists()) {
+        await file.delete();
+      }
+
+      if (mounted) {
+        setState(() {
+          _isModelPresent = false;
+          _progress = 0.0;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text("Cérebro deletado. Baixe novamente para corrigir erros."),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+    } catch (e) {
+      debugPrint("Erro ao deletar: $e");
+    }
   }
 
   @override
@@ -89,7 +154,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           _sectionTitle("NÚCLEO DE INTELIGÊNCIA (AI)"),
           
-          // Card de Status do Modelo
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
@@ -113,10 +177,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ],
                   ),
                 ),
-                if (!_isModelPresent && !_downloading)
+                if (!_downloading)
                   IconButton(
-                    icon: const Icon(Icons.download, color: Colors.white),
-                    onPressed: _downloadAi,
+                    icon: Icon(
+                      _isModelPresent ? Icons.delete_forever : Icons.download, 
+                      color: _isModelPresent ? Colors.redAccent : Colors.white
+                    ),
+                    onPressed: _isModelPresent ? _deleteAi : _downloadAi,
                   )
               ],
             ),
@@ -131,7 +198,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
           _sectionTitle("PERFORMANCE DE HARDWARE"),
 
-          // Switch de Memória RAM
           SwitchListTile(
             value: _highPerf,
             activeColor: Colors.greenAccent,
@@ -139,7 +205,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: const Text("Alocação Máxima (1.5GB)", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             subtitle: const Text(
-              "Aumenta o contexto e a inteligência da IA. Requer mais RAM do dispositivo.",
+              "Aumenta a inteligência da IA. Desligue se o app fechar sozinho.",
               style: TextStyle(color: Colors.grey, fontSize: 12),
             ),
             onChanged: _togglePerformance,
@@ -148,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const Padding(
             padding: EdgeInsets.all(8.0),
             child: Text(
-              "Nota: Se o aplicativo fechar sozinho durante a conversa, desligue a opção acima.",
+              "Nota: Ao alterar essa opção, reinicie o app para limpar a memória RAM antiga.",
               style: TextStyle(color: Colors.white24, fontSize: 10, fontStyle: FontStyle.italic),
             ),
           ),
