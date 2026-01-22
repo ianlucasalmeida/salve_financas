@@ -27,33 +27,38 @@ const UserModelSchema = CollectionSchema(
       name: r'email',
       type: IsarType.string,
     ),
-    r'lastLogin': PropertySchema(
+    r'isSessionActive': PropertySchema(
       id: 2,
+      name: r'isSessionActive',
+      type: IsarType.bool,
+    ),
+    r'lastLogin': PropertySchema(
+      id: 3,
       name: r'lastLogin',
       type: IsarType.dateTime,
     ),
     r'monthlySavingsGoal': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'monthlySavingsGoal',
       type: IsarType.double,
     ),
     r'name': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'name',
       type: IsarType.string,
     ),
     r'password': PropertySchema(
-      id: 5,
+      id: 6,
       name: r'password',
       type: IsarType.string,
     ),
     r'preferredCurrency': PropertySchema(
-      id: 6,
+      id: 7,
       name: r'preferredCurrency',
       type: IsarType.string,
     ),
     r'profilePicPath': PropertySchema(
-      id: 7,
+      id: 8,
       name: r'profilePicPath',
       type: IsarType.string,
     )
@@ -113,12 +118,13 @@ void _userModelSerialize(
 ) {
   writer.writeDateTime(offsets[0], object.createdAt);
   writer.writeString(offsets[1], object.email);
-  writer.writeDateTime(offsets[2], object.lastLogin);
-  writer.writeDouble(offsets[3], object.monthlySavingsGoal);
-  writer.writeString(offsets[4], object.name);
-  writer.writeString(offsets[5], object.password);
-  writer.writeString(offsets[6], object.preferredCurrency);
-  writer.writeString(offsets[7], object.profilePicPath);
+  writer.writeBool(offsets[2], object.isSessionActive);
+  writer.writeDateTime(offsets[3], object.lastLogin);
+  writer.writeDouble(offsets[4], object.monthlySavingsGoal);
+  writer.writeString(offsets[5], object.name);
+  writer.writeString(offsets[6], object.password);
+  writer.writeString(offsets[7], object.preferredCurrency);
+  writer.writeString(offsets[8], object.profilePicPath);
 }
 
 UserModel _userModelDeserialize(
@@ -131,12 +137,13 @@ UserModel _userModelDeserialize(
   object.createdAt = reader.readDateTime(offsets[0]);
   object.email = reader.readString(offsets[1]);
   object.id = id;
-  object.lastLogin = reader.readDateTimeOrNull(offsets[2]);
-  object.monthlySavingsGoal = reader.readDoubleOrNull(offsets[3]);
-  object.name = reader.readString(offsets[4]);
-  object.password = reader.readString(offsets[5]);
-  object.preferredCurrency = reader.readString(offsets[6]);
-  object.profilePicPath = reader.readStringOrNull(offsets[7]);
+  object.isSessionActive = reader.readBool(offsets[2]);
+  object.lastLogin = reader.readDateTimeOrNull(offsets[3]);
+  object.monthlySavingsGoal = reader.readDoubleOrNull(offsets[4]);
+  object.name = reader.readString(offsets[5]);
+  object.password = reader.readString(offsets[6]);
+  object.preferredCurrency = reader.readString(offsets[7]);
+  object.profilePicPath = reader.readStringOrNull(offsets[8]);
   return object;
 }
 
@@ -152,16 +159,18 @@ P _userModelDeserializeProp<P>(
     case 1:
       return (reader.readString(offset)) as P;
     case 2:
-      return (reader.readDateTimeOrNull(offset)) as P;
+      return (reader.readBool(offset)) as P;
     case 3:
-      return (reader.readDoubleOrNull(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 4:
-      return (reader.readString(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 5:
       return (reader.readString(offset)) as P;
     case 6:
       return (reader.readString(offset)) as P;
     case 7:
+      return (reader.readString(offset)) as P;
+    case 8:
       return (reader.readStringOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -591,6 +600,16 @@ extension UserModelQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition>
+      isSessionActiveEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isSessionActive',
+        value: value,
       ));
     });
   }
@@ -1333,6 +1352,18 @@ extension UserModelQuerySortBy on QueryBuilder<UserModel, UserModel, QSortBy> {
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByIsSessionActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSessionActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByIsSessionActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSessionActive', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByLastLogin() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'lastLogin', Sort.asc);
@@ -1446,6 +1477,18 @@ extension UserModelQuerySortThenBy
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByIsSessionActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSessionActive', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByIsSessionActiveDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isSessionActive', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByLastLogin() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'lastLogin', Sort.asc);
@@ -1536,6 +1579,12 @@ extension UserModelQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QDistinct> distinctByIsSessionActive() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isSessionActive');
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QDistinct> distinctByLastLogin() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'lastLogin');
@@ -1596,6 +1645,12 @@ extension UserModelQueryProperty
   QueryBuilder<UserModel, String, QQueryOperations> emailProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'email');
+    });
+  }
+
+  QueryBuilder<UserModel, bool, QQueryOperations> isSessionActiveProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isSessionActive');
     });
   }
 

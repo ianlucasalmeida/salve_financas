@@ -22,7 +22,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   }
 
   Future<void> _loadUser() async {
-    final currentUser = await isar.userModels.where().findFirst();
+    final currentUser = await isar.userModels.filter().isSessionActiveEqualTo(true).findFirst();
     if (mounted) setState(() => _user = currentUser);
   }
 
@@ -35,7 +35,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('EXTRATO', style: TextStyle(fontFamily: 'monospace', letterSpacing: 2, fontWeight: FontWeight.bold)),
+        title: const Text('EXTRATO DETALHADO', style: TextStyle(fontFamily: 'monospace', letterSpacing: 2, fontWeight: FontWeight.bold)),
         centerTitle: true,
         backgroundColor: Colors.black,
         elevation: 0,
@@ -72,7 +72,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
             );
           }
 
-          // Resumo Financeiro no Topo
           final income = txs.where((t) => t.type == 'income').fold(0.0, (s, t) => s + t.value);
           final expense = txs.where((t) => t.type == 'expense').fold(0.0, (s, t) => s + t.value);
 
@@ -104,7 +103,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  // --- HEADER DE RESUMO ---
   Widget _buildSummaryHeader(double income, double expense) {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -138,7 +136,6 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     );
   }
 
-  // --- LÓGICA DE AÇÕES ---
   Future<void> _deleteTransaction(int id) async {
     await isar.writeTxn(() => isar.transactionModels.delete(id));
   }
@@ -155,7 +152,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
 }
 
 // ============================================================================
-// WIDGET DO CARTÃO EXPANSÍVEL (A MÁGICA VISUAL)
+// WIDGET DO CARTÃO EXPANSÍVEL (ATUALIZADO COM DETALHES DE PAGAMENTO)
 // ============================================================================
 class _TransactionExpandableCard extends StatelessWidget {
   final TransactionModel transaction;
@@ -173,6 +170,11 @@ class _TransactionExpandableCard extends StatelessWidget {
     final isExpense = transaction.type == 'expense';
     final color = isExpense ? Colors.redAccent : Colors.greenAccent;
     final hasItems = transaction.items != null && transaction.items!.isNotEmpty;
+    
+    // Recupera dados extras se existirem (assumindo que o model foi atualizado ou usando defaults)
+    // Se o seu model ainda não tem paymentMethod, adicione-o. Aqui simulo a leitura.
+    final String payment = transaction.paymentMethod ?? 'Débito'; 
+    final int installments = transaction.installments ?? 1;
 
     return Card(
       color: const Color(0xFF0F0F0F),
@@ -185,7 +187,6 @@ class _TransactionExpandableCard extends StatelessWidget {
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          // Ícone Leading
           leading: Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
@@ -198,17 +199,27 @@ class _TransactionExpandableCard extends StatelessWidget {
               size: 20,
             ),
           ),
-          // Título e Data
           title: Text(
-            transaction.title.toUpperCase(),
+            transaction.title.toUpperCase(), // Nome da Loja/Descrição
             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.white),
             maxLines: 1, overflow: TextOverflow.ellipsis,
           ),
-          subtitle: Text(
-            "${transaction.date.day}/${transaction.date.month} • ${transaction.category}",
-            style: TextStyle(color: Colors.grey[600], fontSize: 12),
+          subtitle: Row(
+            children: [
+              Text(
+                "${transaction.date.day}/${transaction.date.month} • ${transaction.category}",
+                style: TextStyle(color: Colors.grey[600], fontSize: 12),
+              ),
+              if (isExpense && installments > 1) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4)),
+                  child: Text("${installments}x", style: const TextStyle(fontSize: 10, color: Colors.orangeAccent)),
+                )
+              ]
+            ],
           ),
-          // Valor
           trailing: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.end,
@@ -217,35 +228,47 @@ class _TransactionExpandableCard extends StatelessWidget {
                 "R\$ ${transaction.value.toStringAsFixed(2)}",
                 style: TextStyle(fontWeight: FontWeight.w900, color: color, fontSize: 14),
               ),
-              if (hasItems) 
-                const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey)
+              const Icon(Icons.keyboard_arrow_down, size: 16, color: Colors.grey)
             ],
           ),
           
-          // CONTEÚDO EXPANDIDO (A NOTA FISCAL)
+          // --- DETALHES EXPANDIDOS ---
           children: [
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: const BoxDecoration(
-                color: Color(0xFF050505), // Fundo mais escuro para o "papel"
+                color: Color(0xFF050505),
                 border: Border(top: BorderSide(color: Colors.white10)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Lista de Itens (Se houver)
+                  // DETALHES DO PAGAMENTO
+                  Row(
+                    children: [
+                      const Icon(Icons.credit_card, size: 14, color: Colors.grey),
+                      const SizedBox(width: 8),
+                      Text("PAGAMENTO: ${payment.toUpperCase()}", style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold)),
+                      if (installments > 1)
+                        Text(" (${installments}x de R\$ ${(transaction.value / installments).toStringAsFixed(2)})", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // LISTA DE PRODUTOS (NOTA FISCAL)
                   if (hasItems) ...[
                     const Text("ITENS DA NOTA", style: TextStyle(color: Colors.grey, fontSize: 10, letterSpacing: 2)),
                     const SizedBox(height: 12),
                     ...transaction.items!.map((item) => _buildReceiptRow(item)),
                     const Divider(color: Colors.white10, height: 24),
                   ] else 
-                    const Center(
-                      child: Text("Sem detalhes dos itens.", style: TextStyle(color: Colors.white24, fontSize: 12))
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 8.0),
+                      child: Text("• Sem lista de produtos detalhada.", style: TextStyle(color: Colors.white24, fontSize: 12, fontStyle: FontStyle.italic)),
                     ),
 
-                  // Ações
+                  // AÇÕES
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
@@ -278,24 +301,21 @@ class _TransactionExpandableCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Quantidade
           SizedBox(
-            width: 30,
+            width: 35,
             child: Text(
               "${item.quantity?.toStringAsFixed(0) ?? 1}x",
               style: const TextStyle(color: Colors.greenAccent, fontSize: 12, fontFamily: 'monospace'),
             ),
           ),
-          // Nome
           Expanded(
             child: Text(
-              item.name ?? "Produto",
+              item.name ?? "Produto Desconhecido",
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ),
-          // Valor Total do Item
           Text(
-            "R\$ ${item.totalPrice?.toStringAsFixed(2) ?? 0.00}",
+            "R\$ ${item.totalPrice?.toStringAsFixed(2) ?? '0.00'}",
             style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
           ),
         ],
@@ -305,7 +325,7 @@ class _TransactionExpandableCard extends StatelessWidget {
 }
 
 // ============================================================================
-// FORMULÁRIO DE EDIÇÃO/CRIAÇÃO
+// FORMULÁRIO (ATUALIZADO COM PAGAMENTO E PARCELAS)
 // ============================================================================
 class _TransactionForm extends StatefulWidget {
   final int userId;
@@ -319,16 +339,20 @@ class _TransactionForm extends StatefulWidget {
 class _TransactionFormState extends State<_TransactionForm> {
   late TextEditingController _titleCtrl;
   late TextEditingController _valueCtrl;
+  late TextEditingController _installmentsCtrl;
   late String _type;
   late String _cat;
+  late String _paymentMethod; // Novo campo
 
   @override
   void initState() {
     super.initState();
     _titleCtrl = TextEditingController(text: widget.tx?.title ?? "");
     _valueCtrl = TextEditingController(text: widget.tx?.value.toStringAsFixed(2) ?? "");
+    _installmentsCtrl = TextEditingController(text: (widget.tx?.installments ?? 1).toString());
     _type = widget.tx?.type ?? 'expense';
     _cat = widget.tx?.category ?? 'Geral';
+    _paymentMethod = widget.tx?.paymentMethod ?? 'Crédito';
   }
 
   @override
@@ -346,23 +370,50 @@ class _TransactionFormState extends State<_TransactionForm> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.greenAccent, letterSpacing: 2)),
           const SizedBox(height: 24),
           
-          _inputField("Loja / Descrição", _titleCtrl, icon: Icons.store),
+          _inputField("Loja / Estabelecimento", _titleCtrl, icon: Icons.store),
           const SizedBox(height: 16),
-          _inputField("Valor (R\$)", _valueCtrl, icon: Icons.attach_money, isNumber: true),
+          _inputField("Valor Total (R\$)", _valueCtrl, icon: Icons.attach_money, isNumber: true),
           
           const SizedBox(height: 16),
-          // Seletor de Tipo
-          DropdownButtonFormField<String>(
-            value: _type,
-            dropdownColor: const Color(0xFF222222),
-            style: const TextStyle(color: Colors.white),
-            decoration: _inputDeco("Tipo"),
-            items: const [
-              DropdownMenuItem(value: 'expense', child: Text('Despesa (Saída)')),
-              DropdownMenuItem(value: 'income', child: Text('Receita (Entrada)')),
+          Row(
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _type,
+                  dropdownColor: const Color(0xFF222222),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDeco("Tipo"),
+                  items: const [
+                    DropdownMenuItem(value: 'expense', child: Text('Despesa')),
+                    DropdownMenuItem(value: 'income', child: Text('Receita')),
+                  ],
+                  onChanged: (v) => setState(() => _type = v!),
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  value: _paymentMethod,
+                  dropdownColor: const Color(0xFF222222),
+                  style: const TextStyle(color: Colors.white),
+                  decoration: _inputDeco("Pagamento"),
+                  items: const [
+                    DropdownMenuItem(value: 'Crédito', child: Text('Crédito')),
+                    DropdownMenuItem(value: 'Débito', child: Text('Débito')),
+                    DropdownMenuItem(value: 'PIX', child: Text('PIX')),
+                    DropdownMenuItem(value: 'Dinheiro', child: Text('Dinheiro')),
+                  ],
+                  onChanged: (v) => setState(() => _paymentMethod = v!),
+                ),
+              ),
             ],
-            onChanged: (v) => setState(() => _type = v!),
           ),
+
+          // Campo de Parcelas (Só aparece se for Crédito e Despesa)
+          if (_type == 'expense' && _paymentMethod == 'Crédito') ...[
+            const SizedBox(height: 16),
+            _inputField("Nº Parcelas", _installmentsCtrl, icon: Icons.calendar_view_week, isNumber: true),
+          ],
           
           const SizedBox(height: 32),
           
@@ -404,6 +455,7 @@ class _TransactionFormState extends State<_TransactionForm> {
 
   Future<void> _save() async {
     final val = double.tryParse(_valueCtrl.text.replaceAll(',', '.')) ?? 0.0;
+    final parc = int.tryParse(_installmentsCtrl.text) ?? 1;
     if (_titleCtrl.text.isEmpty || val <= 0) return;
 
     final updatedTx = TransactionModel()
@@ -414,8 +466,10 @@ class _TransactionFormState extends State<_TransactionForm> {
       ..date = widget.tx?.date ?? DateTime.now()
       ..category = _cat
       ..type = _type
+      ..paymentMethod = _paymentMethod // ✅ Salvando para a IA ler depois
+      ..installments = parc // ✅ Salvando para a IA ler depois
       ..rawText = widget.tx?.rawText
-      ..items = widget.tx?.items; // Mantém os itens do scraping
+      ..items = widget.tx?.items;
 
     await isar.writeTxn(() => isar.transactionModels.put(updatedTx));
     if (mounted) context.pop();

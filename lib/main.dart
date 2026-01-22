@@ -2,19 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
-// Imports de Configuração Core
+// Config e Rotas
 import 'package:salve_financas/core/router/app_router.dart';
 import 'package:salve_financas/core/theme/app_theme.dart';
 
-// Imports de Modelos
+// Modelos
 import 'package:salve_financas/features/dashboard/data/models/transaction_model.dart';
 import 'package:salve_financas/features/goals/data/models/goal_model.dart';
 import 'package:salve_financas/features/auth/data/models/user_model.dart';
 import 'package:salve_financas/core/data/models/app_config_model.dart'; 
-// --- NOVO IMPORT ---
 import 'package:salve_financas/features/concierge/data/models/chat_message_model.dart';
+import 'package:salve_financas/features/wallet/data/models/wallet_goal_model.dart'; // ✅ Importante
 
-/// Instância global do Isar.
 late Isar isar;
 
 void main() async {
@@ -29,15 +28,14 @@ void main() async {
         GoalModelSchema, 
         UserModelSchema,
         AppConfigModelSchema,
-        ChatMessageModelSchema, // <--- REGISTRADO AQUI
+        ChatMessageModelSchema,
+        WalletGoalModelSchema, // ✅ Schema registrado para evitar o crash
       ],
       directory: dir.path,
       inspector: true, 
     );
-
-    debugPrint("✅ Isar Database carregado em: ${dir.path}");
   } catch (e) {
-    debugPrint("❌ Erro fatal no Isar: $e");
+    debugPrint("❌ Erro no Isar: $e");
   }
 
   runApp(const SalveFinancasApp());

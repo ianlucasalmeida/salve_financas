@@ -22,12 +22,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadCurrentUserData();
   }
 
-  /// Recupera o usuário da sessão atual para isolamento de dados
+  /// Recupera o usuário da sessão ativa para garantir a persistência
   Future<void> _loadCurrentUserData() async {
-    final user = await isar.userModels.where().findFirst();
+    // Busca o usuário que está com a sessão ligada (isSessionActive == true)
+    final user = await isar.userModels.filter().isSessionActiveEqualTo(true).findFirst();
     if (mounted) {
       setState(() => _currentUser = user);
     }
+  }
+
+  /// ✅ LÓGICA DE LOGOUT ATUALIZADA
+  /// Encaminha o usuário para a tela de encerramento de sessão, 
+  /// que processa a desativação da flag no banco com feedback visual.
+  void _handleLogout() {
+    context.push('/logout-loading');
   }
 
   @override
@@ -44,7 +52,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.redAccent),
             tooltip: 'Sair da Conta',
-            onPressed: () => context.go('/login'),
+            onPressed: _handleLogout, 
           )
         ],
       ),
@@ -196,16 +204,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           const Divider(height: 1, indent: 55),
 
-          // --- 🟢 NOVO BOTÃO: CALCULADORAS DE JUROS ---
           ListTile(
             leading: const Icon(Icons.calculate, size: 20, color: Colors.orangeAccent),
-            title: const Text("Calculadoras Financeiras"),
-            subtitle: const Text("Juros Simples, Compostos & ROI"),
+            title: const Text("Calculadora de Juros"),
+            subtitle: const Text("Juros Compostos & Projeções"),
             trailing: const Icon(Icons.chevron_right, size: 18),
-            onTap: () => _showCalculatorsModal(context), // Abre o menu de opções
+            onTap: () => context.push('/calculator'), 
           ),
           const Divider(height: 1, indent: 55),
-          // -------------------------------------------
 
           ListTile(
             leading: const Icon(Icons.shield_outlined, size: 20),
@@ -235,60 +241,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   // --- LÓGICA DE INTERAÇÃO ---
-
-  // 🟢 MENU DE CALCULADORAS (NOVO)
-  void _showCalculatorsModal(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: const Color(0xFF1A1A1A),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (context) => Wrap(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                const Icon(Icons.calculate, color: Colors.orangeAccent),
-                const SizedBox(width: 10),
-                const Text("Ferramentas de Cálculo", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-          ),
-          ListTile(
-            leading: const Icon(Icons.trending_up, color: Colors.greenAccent),
-            title: const Text("Juros Compostos", style: TextStyle(color: Colors.white)),
-            subtitle: const Text("Projeção de investimentos a longo prazo", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            onTap: () {
-              Navigator.pop(context);
-              // TODO: Navegar para tela de Juros Compostos
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Calculadora de Juros Compostos em breve")));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.percent, color: Colors.blueAccent),
-            title: const Text("Juros Simples", style: TextStyle(color: Colors.white)),
-            subtitle: const Text("Cálculo de rendimentos básicos", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            onTap: () {
-              Navigator.pop(context);
-              // TODO: Navegar para tela de Juros Simples
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Calculadora de Juros Simples em breve")));
-            },
-          ),
-          ListTile(
-            leading: const Icon(Icons.house, color: Colors.redAccent),
-            title: const Text("Financiamento (Price/SAC)", style: TextStyle(color: Colors.white)),
-            subtitle: const Text("Simulador de parcelas de imóveis/veículos", style: TextStyle(color: Colors.grey, fontSize: 12)),
-            onTap: () {
-              Navigator.pop(context);
-              // TODO: Navegar para tela de Financiamento
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Simulador de Financiamento em breve")));
-            },
-          ),
-          const SizedBox(height: 20),
-        ],
-      ),
-    );
-  }
 
   void _showCurrencyPicker(BuildContext context) {
     showModalBottomSheet(
@@ -343,7 +295,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 }
 
-// --- PAINTER DO ECONÔMETRO (ESTILO FIAT) ---
+// --- PAINTER DO ECONÔMETRO (DESIGN ORIGINAL PRESERVADO) ---
 
 class FiatEconometerPainter extends CustomPainter {
   final double balance;
