@@ -16,16 +16,17 @@ dependencies:
   fl_chart: ^0.66.0
   intl: ^0.19.0
   flutter_markdown: ^0.7.1
+  flutter_svg: ^2.0.10 # ✅ Adicionado para a Splash Screen
 
   # --- DADOS ---
   isar: ^3.1.0
   isar_flutter_libs: ^3.1.0
   path_provider: ^2.1.2
   
-  # --- NETWORK (Necessário para baixar o modelo) ---
+  # --- NETWORK ---
   dio: ^5.4.0
   
-  # --- AI LOCAL (Otimizado para Android) ---
+  # --- AI LOCAL ---
   llama_flutter_android: ^0.1.1 
   
   # --- OUTROS ---
@@ -44,8 +45,19 @@ dev_dependencies:
   flutter_lints: ^3.0.0
   build_runner: ^2.4.8
   isar_generator: ^3.1.0
+  flutter_launcher_icons: ^0.14.4
 
 flutter:
   uses-material-design: true
   assets:
     - assets/context_rules.json
+    - assets/images/salve_logo4.png # ✅ Atualizado para o novo PNG
+
+# ✅ Configuração para gerar os ícones do celular (Android/iOS)
+flutter_launcher_icons:
+  android: "ic_launcher"
+  ios: true
+  image_path: "assets/images/salve_logo4.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#000000" # Fundo preto
+  adaptive_icon_foreground: "assets/images/salve_logo4.png"
